@@ -148,8 +148,11 @@ def test__publish_run_records_the_run_and_pins_quality_to_the_current_rule(repo,
     repo.upsert_definitions([contract_record(contract_doc)], ctx)
     context = PublishContext(SQUAD, git_commit="abc", target="dev")
     counts, collection = publish_run("42", repository=repo, context=context, readers=(FakeJobs(), FakeEventLog()))
-    assert counts.inserted == 4 and counts.orphans_cleaned == 0
+    assert counts.inserted == 5 and counts.orphans_cleaned == 0
     assert [item.name for item in collection.unmapped] == ["unknown_expectation"]
+    performance = rows(sqlite_engine, "SELECT update_id, run_id, full_refresh FROM md_run_performance")
+    update = collection.run.pipeline_updates[0]
+    assert performance == [{"update_id": update.update_id, "run_id": "42", "full_refresh": int(update.full_refresh)}]
     stored = rows(sqlite_engine, "SELECT contract_id, rule_record_version, dropped FROM md_quality_result")
     assert stored == [{"contract_id": CONTRACT_ID, "rule_record_version": 1, "dropped": 2}]
     again, _ = publish_run("42", repository=repo, context=context, readers=(FakeJobs(), FakeEventLog()))

@@ -41,6 +41,7 @@ from dbxops.metastore.model import (
     render_table_ddl,
     render_view_ddl,
 )
+from dbxops.metastore.performance import PERFORMANCE_COLUMNS
 from dbxops.metastore.records import (
     OWNED_TAG_KEYS,
     OWNED_TAG_PREFIXES,
@@ -97,7 +98,7 @@ def encode(column: Any, value: Any) -> Any:
 def decode(table: Table, row: Mapping[str, Any]) -> dict[str, Any]:
     """Parse the JSON text columns of a row read back from Databricks."""
     return {
-        name: json.loads(value) if isinstance(table.c[name].type, JsonType) and isinstance(value, str) else value
+        name: (json.loads(value) if isinstance(table.c[name].type, JsonType) and isinstance(value, str) else value)
         for name, value in row.items()
     }
 
@@ -239,7 +240,7 @@ class UcStatements:
                 params[f"p{index}_{name}"] = encode(table.c[name], values[name])
             tuples.append("(" + ", ".join(self._expr(table, name, f"p{index}_{name}") for name in names) + ")")
         columns = ", ".join(_quote(name) for name in names)
-        return f"INSERT INTO {self.table_path(child.table)} ({columns}) VALUES {', '.join(tuples)}", params
+        return (f"INSERT INTO {self.table_path(child.table)} ({columns}) VALUES {', '.join(tuples)}", params)
 
     def merge_parent(
         self, spec: EntitySpec, record: DefinitionRecord, previous_version: int, ctx: PublishContext
@@ -307,7 +308,11 @@ class UcStatements:
     @staticmethod
     def _select_list(table: Table) -> str:
         return ", ".join(
-            f"CAST({_quote(c.name)} AS STRING) AS {_quote(c.name)}" if isinstance(c.type, JsonType) else _quote(c.name)
+            (
+                f"CAST({_quote(c.name)} AS STRING) AS {_quote(c.name)}"
+                if isinstance(c.type, JsonType)
+                else _quote(c.name)
+            )
             for c in table.c
         )
 
@@ -407,7 +412,7 @@ class UcStatements:
     def deactivate_derived(self, derived: row_builders.DerivedSet, ctx: PublishContext) -> Statement:
         """Return the UPDATE that deactivates everything in scope; used when a publisher sends an empty set."""
         stale, params = _stale_predicate(ctx.repo_id, derived)
-        return f"UPDATE {self.table_path(derived.table_name)} AS t SET is_active = false WHERE {stale}", params
+        return (f"UPDATE {self.table_path(derived.table_name)} AS t SET is_active = false WHERE {stale}", params)
 
     # --------------------------------------------------------------- upkeep
 
@@ -418,3 +423,14 @@ class UcStatements:
             f"WHERE recorded_at < {_NOW} - INTERVAL {int(retention_days)} DAYS",
             {},
         )
+
+
+def recent_performance_statement(table_path: str, repo_id: str, target: str, limit: int) -> Statement:
+    """Return the statement listing a repo's newest performance facts on one target from ``table_path``."""
+    columns = ", ".join(_quote(name) for name in PERFORMANCE_COLUMNS)
+    return (
+        f"SELECT {columns} FROM {table_path} "
+        "WHERE repo_id = :repo_id AND target = :target ORDER BY recorded_at DESC, update_id DESC "
+        f"LIMIT {int(limit)}",
+        {"repo_id": repo_id, "target": target},
+    )

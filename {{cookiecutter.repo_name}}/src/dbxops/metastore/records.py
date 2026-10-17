@@ -340,6 +340,134 @@ class EvalResultRecord:
 
 
 @dataclass(frozen=True)
+class PerformanceRecord:
+    """How one pipeline update performed; derived from the run's own timings and row counts, never extra scans."""
+
+    target: str
+    update_id: str
+    run_id: str
+    pipeline_asset_id: str
+    duration_seconds: float | None = None
+    rows_written: int = 0
+    full_refresh: bool = False
+
+    @property
+    def rows_per_second(self) -> float | None:
+        """Return the write throughput, or ``None`` when the duration is unknown or zero."""
+        if not self.duration_seconds:
+            return None
+        return self.rows_written / self.duration_seconds
+
+
+@dataclass(frozen=True)
+class CostOwner:
+    """Who a cost line belongs to and how that was decided (``tag``, ``job_name``, ``deployment`` or ``none``)."""
+
+    project_id: str = ""
+    target: str = ""
+    bundle: str = ""
+    git_repo: str = ""
+    git_sha: str = ""
+    attribution: str = "none"
+
+
+@dataclass(frozen=True)
+class CostAmount:
+    """DBUs used and their list-price cost."""
+
+    dbus: float = 0.0
+    list_cost: float = 0.0
+    currency: str = ""
+
+    def __add__(self, other: CostAmount) -> CostAmount:
+        """Return the sum of two amounts in the same currency."""
+        return CostAmount(self.dbus + other.dbus, self.list_cost + other.list_cost, self.currency or other.currency)
+
+
+@dataclass(frozen=True)
+class CostRecord:
+    """One day of list-price cost for one workspace object and SKU, from ``system.billing.usage``."""
+
+    usage_date: str
+    object_type: str
+    object_id: str
+    sku_name: str
+    amount: CostAmount = field(default_factory=CostAmount)
+    owner: CostOwner = field(default_factory=CostOwner)
+
+    @property
+    def day_index(self) -> int:
+        """Return days since 1970-01-01, so views can compare dates with integer arithmetic in every dialect."""
+        return (datetime.strptime(self.usage_date, "%Y-%m-%d") - datetime(1970, 1, 1)).days
+
+
+@dataclass(frozen=True)
+class TuningKey:
+    """Identifies one recommendation: the asset, the rule that fired and the evidence it fired on."""
+
+    target: str
+    asset_id: str
+    rule_code: str
+    evidence_key: str
+
+
+@dataclass(frozen=True)
+class TuningRecommendation:
+    """A tuning advisor proposal; it is applied only after a person accepts it."""
+
+    key: TuningKey
+    severity: str
+    message: str
+    expected_saving_pct: float | None = None
+    evidence: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class TuningDecision:
+    """A person's answer to a recommendation: ``accepted`` or ``rejected``, with a reason."""
+
+    key: TuningKey
+    decision: str
+    decided_by: str
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class DesignDecisionRecord:
+    """The ingestion or transformation method chosen for an asset, against the recommender's choice."""
+
+    asset_id: str
+    git_sha: str
+    recommended: str
+    chosen: str
+    justification: str = ""
+    approver: str = ""
+
+
+@dataclass(frozen=True)
+class RunEventRecord:
+    """One structured log event of a job run (written by the loguru sink)."""
+
+    run_id: str
+    seq: int
+    level: str
+    message: str
+    logged_at: datetime
+    context: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class OperationsBatch:
+    """Squad-owned operational facts recorded together: performance, tuning, design decisions and log events."""
+
+    performance: Sequence[PerformanceRecord] = ()
+    recommendations: Sequence[TuningRecommendation] = ()
+    tuning_decisions: Sequence[TuningDecision] = ()
+    design_decisions: Sequence[DesignDecisionRecord] = ()
+    run_events: Sequence[RunEventRecord] = ()
+
+
+@dataclass(frozen=True)
 class PublishLogEntry:
     """One status event of a publish; ``(publish_id, status)`` is its idempotency key."""
 

@@ -36,6 +36,7 @@ from sqlalchemy import (
     case,
     exists,
     false,
+    func,
     select,
     text,
     true,
@@ -384,6 +385,48 @@ _FACTS: dict[str, tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]
             ("gate_source_path", "text"),
         ),
     ),
+    "md_run_performance": (
+        (("target", "text"), ("update_id", "text")),
+        (
+            ("run_id", "text"),
+            ("pipeline_asset_id", "text"),
+            ("duration_seconds", "double"),
+            ("rows_written", "bigint"),
+            ("rows_per_second", "double"),
+            ("full_refresh", "bool"),
+        ),
+    ),
+    "md_cost_daily": (
+        (("usage_date", "text"), ("object_type", "text"), ("object_id", "text"), ("sku_name", "text")),
+        (
+            ("day_index", "int"),
+            ("project_id", "text"),
+            ("target", "text"),
+            ("bundle", "text"),
+            ("git_repo", "text"),
+            ("git_sha", "text"),
+            ("attribution", "text"),
+            ("dbus", "double"),
+            ("list_cost", "double"),
+            ("currency", "text"),
+        ),
+    ),
+    "md_tuning_recommendation": (
+        (("target", "text"), ("asset_id", "text"), ("rule_code", "text"), ("evidence_key", "text")),
+        (("severity", "text"), ("message", "text"), ("expected_saving_pct", "double"), ("evidence", "json")),
+    ),
+    "md_tuning_decision": (
+        (("target", "text"), ("asset_id", "text"), ("rule_code", "text"), ("evidence_key", "text")),
+        (("decision", "text"), ("decided_by", "text"), ("reason", "text")),
+    ),
+    "md_design_decision": (
+        (("asset_id", "text"), ("git_sha", "text")),
+        (("recommended", "text"), ("chosen", "text"), ("justification", "text"), ("approver", "text")),
+    ),
+    "md_run_event": (
+        (("run_id", "text"), ("seq", "int")),
+        (("level", "text"), ("message", "text"), ("logged_at", "ts"), ("context", "json")),
+    ),
     "md_publish_log": (
         (("publish_id", "text"), ("status", "text")),
         (
@@ -408,6 +451,9 @@ RUNTIME_TABLES = (
     "md_dataset_metrics",
     "md_quality_result",
     "md_eval_result",
+    "md_run_performance",
+    "md_tuning_recommendation",
+    "md_run_event",
 )
 
 
@@ -426,7 +472,7 @@ def _build_specs() -> dict[str, EntitySpec]:
 ENTITIES: dict[str, EntitySpec] = _build_specs()
 PLATFORM_KINDS = frozenset(kind for kind, spec in ENTITIES.items() if spec.owner == WRITER_PLATFORM)
 SQUAD_KINDS = frozenset(kind for kind, spec in ENTITIES.items() if spec.owner == WRITER_SQUAD)
-PLATFORM_FACT_TABLES = frozenset({"md_registration"})
+PLATFORM_FACT_TABLES = frozenset({"md_registration", "md_cost_daily"})
 DERIVED_TABLES = tuple(_DERIVED)
 FACT_TABLES = tuple(_FACTS)
 
@@ -555,7 +601,77 @@ class MetaModel:
         views["v_lineage"] = self._lineage_view()
         views["v_lineage_drift"] = self._lineage_drift_view()
         views["v_project_directory"] = self._project_directory_view()
+        views["v_cost_by_project"] = self._cost_by_project_view()
+        views["v_burn_rate"] = self._burn_rate_view()
+        views["v_open_tuning_recommendations"] = self._open_tuning_view()
         return views
+
+    def _daily_cost(self):
+        cost = self.table("md_cost_daily")
+        return (
+            select(
+                cost.c.project_id,
+                cost.c.usage_date,
+                cost.c.day_index,
+                func.sum(cost.c.dbus).label("dbus"),
+                func.sum(cost.c.list_cost).label("list_cost"),
+            )
+            .group_by(cost.c.project_id, cost.c.usage_date, cost.c.day_index)
+            .subquery("daily")
+        )
+
+    def _cost_by_project_view(self) -> Select:
+        daily = self._daily_cost()
+        return select(daily.c.project_id, daily.c.usage_date, daily.c.day_index, daily.c.dbus, daily.c.list_cost)
+
+    def _burn_rate_view(self) -> Select:
+        """Per project: the latest day's cost against the averages of the 7 and 28 days before it."""
+        daily = self._daily_cost()
+        latest = (
+            select(daily.c.project_id, func.max(daily.c.day_index).label("latest_day"))
+            .group_by(daily.c.project_id)
+            .subquery("latest")
+        )
+        other = self._daily_cost().alias("window")
+
+        def window_sum(first_offset: int, last_offset: int):
+            return (
+                select(func.coalesce(func.sum(other.c.list_cost), 0.0))
+                .where(
+                    and_(
+                        other.c.project_id == latest.c.project_id,
+                        other.c.day_index >= latest.c.latest_day - first_offset,
+                        other.c.day_index <= latest.c.latest_day - last_offset,
+                    )
+                )
+                .scalar_subquery()
+            )
+
+        last_day = window_sum(0, 0)
+        avg_7 = window_sum(7, 1) / 7.0
+        avg_28 = window_sum(28, 1) / 28.0
+        growth = case((avg_7 > 0, (last_day - avg_7) * 100.0 / avg_7), else_=None)
+        return select(
+            latest.c.project_id,
+            latest.c.latest_day,
+            last_day.label("cost_latest_day"),
+            avg_7.label("avg_daily_cost_prev_7d"),
+            avg_28.label("avg_daily_cost_prev_28d"),
+            growth.label("growth_pct_vs_7d"),
+            (avg_7 * 30.0).label("projected_30d_cost"),
+        )
+
+    def _open_tuning_view(self) -> Select:
+        recommendation, decision = self.table("md_tuning_recommendation"), self.table("md_tuning_decision")
+        decided = exists().where(
+            and_(
+                decision.c.target == recommendation.c.target,
+                decision.c.asset_id == recommendation.c.asset_id,
+                decision.c.rule_code == recommendation.c.rule_code,
+                decision.c.evidence_key == recommendation.c.evidence_key,
+            )
+        )
+        return select(recommendation).where(~decided)
 
     def _child_view(self, parent: Table, child: ChildSpec) -> Select:
         table = self.table(child.table)

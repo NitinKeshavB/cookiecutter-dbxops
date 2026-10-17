@@ -10,9 +10,16 @@ resources:
       - notebook:
           path: ${var.framework_source_path}/dlt_pipeline
       root_path: ${workspace.file_path}/src
+      budget_policy_id: ${var.budget_policy_id}
       tags:
         cost_center: ${var.cost_center}
         region: ${var.region}
+        project_id: ${var.project_id}
+        bundle: ${bundle.name}
+        target: ${bundle.target}
+        git_repo: ${bundle.git.origin_url}
+        git_ref: ${bundle.git.branch}
+        git_sha: ${bundle.git.commit}
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src
         bundle.target: ${bundle.target}

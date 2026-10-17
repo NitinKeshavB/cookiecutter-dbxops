@@ -2,9 +2,24 @@ resources:
   jobs:
     mlops_run:
       name: '[${var.project_id}] mlops run (${bundle.target}${var.logical_env})'
+      budget_policy_id: ${var.budget_policy_id}
       tags:
         cost_center: ${var.cost_center}
         region: ${var.region}
+        project_id: ${var.project_id}
+        bundle: ${bundle.name}
+        target: ${bundle.target}
+        git_repo: ${bundle.git.origin_url}
+        git_ref: ${bundle.git.branch}
+        git_sha: ${bundle.git.commit}
+      email_notifications:
+        on_failure:
+        - ${var.notification_email}
+      webhook_notifications:
+        on_failure:
+        - id: ${var.notification_destination_id}
+        on_duration_warning_threshold_exceeded:
+        - id: ${var.notification_destination_id}
       performance_target: ${var.performance_target}
       queue:
         enabled: true

@@ -46,6 +46,9 @@ contracts:
 export-ontos:
 	bash run.sh export-ontos $(TARGET)
 
+recommend:
+	bash run.sh recommend
+
 render-platform:
 	bash run.sh render-platform $(PROJECT)
 

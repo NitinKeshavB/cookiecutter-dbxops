@@ -26,9 +26,12 @@ from dbxops.metastore.model import (
 )
 from dbxops.metastore.records import (
     ORIGINS,
+    CostRecord,
     DeploymentRecord,
     EvalResultRecord,
     LineageEdge,
+    OperationsBatch,
+    PerformanceRecord,
     PublishContext,
     PublishLogEntry,
     QualityResultRecord,
@@ -36,6 +39,7 @@ from dbxops.metastore.records import (
     RunRecord,
     SemanticLinkRow,
     TagRow,
+    TuningKey,
     is_owned_tag_key,
 )
 
@@ -157,7 +161,7 @@ def deployment_rows(record: DeploymentRecord, ctx: PublishContext) -> list[FactR
                 git_sha=ci.git_sha,
                 ci_run_url=ci.ci_run_url,
                 deployed_by=ci.deployed_by,
-                deployed_at=record.deployed_at if record.deployed_at is not None else DB_NOW,
+                deployed_at=(record.deployed_at if record.deployed_at is not None else DB_NOW),
                 status=record.status,
                 framework_version=ci.framework_version,
                 dbxops_version=ci.dbxops_version,
@@ -289,6 +293,122 @@ def registration_rows(records: Iterable[RegistrationRecord], ctx: PublishContext
         )
         for item in records
     ]
+
+
+def performance_rows(records: Iterable[PerformanceRecord], ctx: PublishContext) -> list[FactRow]:
+    """Return one ``md_run_performance`` row per pipeline update."""
+    return [
+        (
+            "md_run_performance",
+            _fact(
+                ctx,
+                target=item.target,
+                update_id=item.update_id,
+                run_id=item.run_id,
+                pipeline_asset_id=item.pipeline_asset_id,
+                duration_seconds=item.duration_seconds,
+                rows_written=item.rows_written,
+                rows_per_second=item.rows_per_second,
+                full_refresh=item.full_refresh,
+            ),
+        )
+        for item in records
+    ]
+
+
+def cost_rows(records: Iterable[CostRecord], ctx: PublishContext) -> list[FactRow]:
+    """Return one ``md_cost_daily`` row per day, object and SKU."""
+    return [
+        (
+            "md_cost_daily",
+            _fact(
+                ctx,
+                usage_date=item.usage_date,
+                object_type=item.object_type,
+                object_id=item.object_id,
+                sku_name=item.sku_name,
+                day_index=item.day_index,
+                project_id=item.owner.project_id,
+                target=item.owner.target,
+                bundle=item.owner.bundle,
+                git_repo=item.owner.git_repo,
+                git_sha=item.owner.git_sha,
+                attribution=item.owner.attribution,
+                dbus=item.amount.dbus,
+                list_cost=item.amount.list_cost,
+                currency=item.amount.currency,
+            ),
+        )
+        for item in records
+    ]
+
+
+def _tuning_key(key: TuningKey) -> dict[str, Any]:
+    return {
+        "target": key.target,
+        "asset_id": key.asset_id,
+        "rule_code": key.rule_code,
+        "evidence_key": key.evidence_key,
+    }
+
+
+def operations_rows(batch: OperationsBatch, ctx: PublishContext) -> list[FactRow]:
+    """Return the rows of every squad-owned operational fact in ``batch``."""
+    rows = performance_rows(batch.performance, ctx)
+    rows += [
+        (
+            "md_tuning_recommendation",
+            _fact(
+                ctx,
+                **_tuning_key(item.key),
+                severity=item.severity,
+                message=item.message,
+                expected_saving_pct=item.expected_saving_pct,
+                evidence=dict(item.evidence),
+            ),
+        )
+        for item in batch.recommendations
+    ]
+    rows += [
+        (
+            "md_tuning_decision",
+            _fact(
+                ctx, **_tuning_key(item.key), decision=item.decision, decided_by=item.decided_by, reason=item.reason
+            ),
+        )
+        for item in batch.tuning_decisions
+    ]
+    rows += [
+        (
+            "md_design_decision",
+            _fact(
+                ctx,
+                asset_id=item.asset_id,
+                git_sha=item.git_sha,
+                recommended=item.recommended,
+                chosen=item.chosen,
+                justification=item.justification,
+                approver=item.approver,
+            ),
+        )
+        for item in batch.design_decisions
+    ]
+    rows += [
+        (
+            "md_run_event",
+            _fact(
+                ctx,
+                run_id=item.run_id,
+                seq=item.seq,
+                level=item.level,
+                message=item.message,
+                logged_at=item.logged_at,
+                context=dict(item.context),
+            ),
+        )
+        for item in batch.run_events
+    ]
+    return rows
 
 
 def publish_log_row(entry: PublishLogEntry) -> FactRow:

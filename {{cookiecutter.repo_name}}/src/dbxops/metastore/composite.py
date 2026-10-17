@@ -15,10 +15,13 @@ from typing import (
 )
 
 from dbxops.metastore.records import (
+    CostRecord,
     DefinitionRecord,
     DeploymentRecord,
     EvalResultRecord,
     LineageEdge,
+    OperationsBatch,
+    PerformanceRecord,
     PublishContext,
     PublishCounts,
     PublishLogEntry,
@@ -69,6 +72,10 @@ class CompositeRepository:
         """Read from the primary sink."""
         return self.sinks[0].current_quality_rules(repo_id)
 
+    def recent_performance(self, repo_id: str, target: str, limit: int = 500) -> list[PerformanceRecord]:
+        """Read recent performance facts from the primary sink."""
+        return self.sinks[0].recent_performance(repo_id, target, limit)
+
     def upsert_semantic_links(self, rows: Sequence[SemanticLinkRow], ctx: PublishContext) -> int:
         """Replace semantic links on every sink."""
         return self._fan_out(lambda sink: sink.upsert_semantic_links(rows, ctx))
@@ -100,6 +107,14 @@ class CompositeRepository:
     def record_evals(self, results: Sequence[EvalResultRecord], ctx: PublishContext) -> int:
         """Insert evaluation results on every sink."""
         return self._fan_out(lambda sink: sink.record_evals(results, ctx))
+
+    def record_operations(self, batch: OperationsBatch, ctx: PublishContext) -> int:
+        """Insert operational facts on every sink."""
+        return self._fan_out(lambda sink: sink.record_operations(batch, ctx))
+
+    def record_costs(self, records: Sequence[CostRecord], ctx: PublishContext) -> int:
+        """Insert daily cost rows on every sink."""
+        return self._fan_out(lambda sink: sink.record_costs(records, ctx))
 
     def log_publish(self, entry: PublishLogEntry) -> None:
         """Append a publish-log event on every sink."""

@@ -28,6 +28,8 @@ from dbxops.metadata.contracts import (
     get_custom,
     plan_contracts,
 )
+from dbxops.metadata.defaults import check_table_defaults
+from dbxops.metadata.ingestion import check_ingestion
 from dbxops.metadata.repo import (
     LAYERS,
     Doc,
@@ -441,6 +443,16 @@ def rule_substitutions(ctx: RepoContext, _: Options) -> list[Finding]:
     ]
 
 
+def rule_table_defaults(ctx: RepoContext, _: Options) -> list[Finding]:
+    """Check spec targets against conf/table_defaults.yml: required properties, clustering, unread change feeds."""
+    return check_table_defaults(ctx)
+
+
+def rule_ingestion_method(ctx: RepoContext, _: Options) -> list[Finding]:
+    """Check every bronze table declares how it is ingested, and uses the cheapest method that fits or says why not."""
+    return check_ingestion(ctx)
+
+
 DEFAULT_RULES: tuple[Rule, ...] = (
     rule_platform_integrity,
     rule_repo_kind,
@@ -455,6 +467,8 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     rule_products,
     rule_semantics,
     rule_semver,
+    rule_table_defaults,
+    rule_ingestion_method,
 )
 
 

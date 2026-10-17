@@ -17,10 +17,12 @@ from typing import Sequence
 from dbxops.metastore import rows as row_builders
 from dbxops.metastore.model import ENTITIES
 from dbxops.metastore.records import (
+    CostRecord,
     DefinitionRecord,
     DeploymentRecord,
     EvalResultRecord,
     LineageEdge,
+    OperationsBatch,
     PublishContext,
     PublishCounts,
     PublishLogEntry,
@@ -110,6 +112,14 @@ class BaseRepository(ABC):
     def record_evals(self, results: Sequence[EvalResultRecord], ctx: PublishContext) -> int:
         """Insert evaluation results if absent."""
         return self._insert_absent(row_builders.eval_rows(results, ctx))
+
+    def record_operations(self, batch: OperationsBatch, ctx: PublishContext) -> int:
+        """Insert performance, tuning, design-decision and log-event facts if absent."""
+        return self._insert_absent(row_builders.operations_rows(batch, ctx))
+
+    def record_costs(self, records: Sequence[CostRecord], ctx: PublishContext) -> int:
+        """Insert daily cost rows if absent; a day already loaded is never changed."""
+        return self._insert_absent(row_builders.cost_rows(records, ctx))
 
     def log_publish(self, entry: PublishLogEntry) -> None:
         """Append one status event of a publish to ``md_publish_log``."""

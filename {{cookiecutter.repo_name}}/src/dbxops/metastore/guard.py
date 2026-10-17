@@ -18,10 +18,13 @@ from dbxops.metastore.model import (
 )
 from dbxops.metastore.records import (
     PLATFORM_REPO_ID,
+    CostRecord,
     DefinitionRecord,
     DeploymentRecord,
     EvalResultRecord,
     LineageEdge,
+    OperationsBatch,
+    PerformanceRecord,
     PublishContext,
     PublishCounts,
     PublishLogEntry,
@@ -141,6 +144,18 @@ class WriterGuard:
         self._require_squad("evaluation results")
         return self._inner.record_evals(results, ctx)
 
+    def record_operations(self, batch: OperationsBatch, ctx: PublishContext) -> int:
+        """Write performance, tuning, design-decision and log-event facts; only squads own them."""
+        self._check_ctx(ctx)
+        self._require_squad("operational facts")
+        return self._inner.record_operations(batch, ctx)
+
+    def record_costs(self, records: Sequence[CostRecord], ctx: PublishContext) -> int:
+        """Write daily cost rows; only the registry owns them, because one load covers every project."""
+        self._check_ctx(ctx)
+        self._require_platform("daily costs")
+        return self._inner.record_costs(records, ctx)
+
     def log_publish(self, entry: PublishLogEntry) -> None:
         """Append a publish-log event for this publisher only."""
         if entry.ctx.repo_id != self.repo_id:
@@ -169,6 +184,10 @@ class WriterGuard:
     def current_quality_rules(self, repo_id: str) -> list[QualityRuleRef]:
         """List the current quality rules of a repo."""
         return self._inner.current_quality_rules(repo_id)
+
+    def recent_performance(self, repo_id: str, target: str, limit: int = 500) -> list[PerformanceRecord]:
+        """Read a repo's recent performance facts."""
+        return self._inner.recent_performance(repo_id, target, limit)
 
     def cleanup_orphans(self) -> int:
         """Delete orphan child rows; they belong to no version, so any writer may clean them."""

@@ -17,6 +17,15 @@ configuration, the Lakeflow Framework's own validator for specs, `actionlint` an
 - GitHub provisioning (repository from template, environments, ruleset) and the `github-oidc` deploy authentication.
 - Ontos accepting the exported shapes unchanged.
 
+- The `platform_insights` views (`dbxops.insights`): the system-table columns follow the documentation;
+  `system.lakeflow.pipeline_update_timeline` and the job timeline tables are in preview in some regions, and the
+  lineage column names were not all confirmable from the documentation. Run `python -m dbxops.insights render` and
+  each view once in a workspace.
+- The cost loader's `system.billing` paths (`usage_metadata.job_name`, `list_prices.pricing.effective_list.default`),
+  and that `${bundle.git.*}` values are accepted as job and pipeline tag values.
+- The Microsoft Teams notification destination and the budget policies: their ids are placeholders until the
+  platform team creates them.
+
 ## Not built
 
 - Workspace setup: creating schemas, applying the privilege matrix, grants on `platform_meta`, applying tags in Unity Catalog. The
@@ -25,6 +34,10 @@ configuration, the Lakeflow Framework's own validator for specs, `actionlint` an
 - A scheduler for the retention purge; SQL Server; observed-lineage reader.
 - Consolidating the MLOps and AIOps lifecycle wrappers into the package (a `--catalog` option on `dbxops.lifecycle reconcile` would remove them).
 - A model monitor; contracts for inference, quarantine and trace tables.
+- A platform bundle that schedules `dbxops-publish-costs` and `dbxops-deploy-insights` (the job is sketched in
+  `Cost_And_Performance.md`), the owner AI/BI dashboard and its SQL alerts.
+- Table-layout facts (`DESCRIBE DETAIL` file counts and sizes) and the advisor rules that need them (small files,
+  clustering keys versus consumer filters); today `v_table_usage` uses lineage and predictive-optimization history.
 
 ## Decisions to confirm
 

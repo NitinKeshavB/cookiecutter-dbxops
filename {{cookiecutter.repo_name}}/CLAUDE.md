@@ -207,7 +207,7 @@ All tool config lives in `pyproject.toml`. Read it before assuming a convention.
 | Import style | `isort` profile `black`, `force_grid_wrap = 2` | `[tool.isort]` |
 | Cyclomatic complexity | `radon` max **10** per function | `[tool.flake8]` |
 | Python floor | `>=3.11` — do not use syntax newer than that without raising it | `[project]` |
-| Coverage gate | `MINIMUM_TEST_COVERAGE_PERCENT=0` | `run.sh` |
+| Coverage gate | `MINIMUM_TEST_COVERAGE_PERCENT=90` (raise it, never lower it) | `run.sh` |
 
 **Five traps worth knowing before you hit them:**
 
