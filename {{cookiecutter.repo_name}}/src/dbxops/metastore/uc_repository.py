@@ -37,8 +37,10 @@ from dbxops.metastore.model import (
     build_model,
     entity_spec,
 )
+from dbxops.metastore.performance import performance_record
 from dbxops.metastore.records import (
     DefinitionRecord,
+    PerformanceRecord,
     PublishContext,
     PublishCounts,
     QualityRuleRef,
@@ -54,6 +56,7 @@ from dbxops.metastore.uc_sql import (
     Statement,
     UcStatements,
     decode,
+    recent_performance_statement,
 )
 
 Row = dict[str, Any]
@@ -214,6 +217,15 @@ class UcRepository(BaseRepository):
     def current_quality_rules(self, repo_id: str) -> list[QualityRuleRef]:
         """Return the quality rules of the current contracts of ``repo_id``, with the asset each applies to."""
         return [QualityRuleRef(**row) for row in self._run(self._sql.quality_rules(repo_id))]
+
+    def recent_performance(self, repo_id: str, target: str, limit: int = 500) -> list[PerformanceRecord]:
+        """Return the newest ``limit`` performance facts of ``repo_id`` on ``target``, newest first."""
+        return [
+            performance_record(row)
+            for row in self._run(
+                recent_performance_statement(self._sql.table_path("md_run_performance"), repo_id, target, limit)
+            )
+        ]
 
     # -------------------------------------------------- derived (Pattern B) rows
 

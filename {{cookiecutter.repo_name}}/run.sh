@@ -7,7 +7,7 @@ set -e
 #####################
 
 THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-MINIMUM_TEST_COVERAGE_PERCENT=0
+MINIMUM_TEST_COVERAGE_PERCENT=90
 
 
 ##########################
@@ -235,6 +235,11 @@ function sync-substitutions {
 }
 
 # write Ontos upload files for one target into build/ontos/<target>
+# compare each bronze table's declared ingestion method with the cheapest one that fits
+function recommend {
+    python -m dbxops.metadata --root "$THIS_DIR" recommend
+}
+
 function export-ontos {
     python -m dbxops.metadata --root "$THIS_DIR" export-ontos --target "${1:?usage: ./run.sh export-ontos <target>}"
 }

@@ -17,6 +17,11 @@ import yaml
 from dbxops.findings import has_errors
 from dbxops.metadata.repo import RepoContext
 from dbxops.metadata.rules import validate
+from dbxops.metadata.scaffold import (
+    NOTIFICATION_PLACEHOLDERS,
+    NOTIFICATIONS,
+    PROVENANCE_TAGS,
+)
 from tests.consts import PROJECT_DIR
 from tests.fixtures.bundle_schema import (
     bundle_dirs,
@@ -28,6 +33,7 @@ TEAM = yaml.safe_load((PROJECT_DIR / "metadata/_platform/teams.yaml").read_text(
 REPO = yaml.safe_load((PROJECT_DIR / "metadata/_platform/repo.yaml").read_text(encoding="utf-8"))
 UPSTREAM_VALIDATOR = PROJECT_DIR / "framework/lakeflow_framework/scripts/validate_dataflows.py"
 BUNDLES = [pytest.param(path, id=path.name) for path in bundle_dirs()]
+EXPECTED_TAGS = {"cost_center": "${var.cost_center}", "region": "${var.region}", **PROVENANCE_TAGS}
 
 
 def unbracket(value: str) -> str:
@@ -95,7 +101,7 @@ def test__jobs_only_reference_pipelines_the_bundle_defines_and_are_tagged(bundle
     resources = load_bundle(bundle)["resources"]
     for job in resources["jobs"].values():
         keys = {t["task_key"] for t in job["tasks"]}
-        assert set(job["tags"]) == {"cost_center", "region"}
+        assert job["tags"] == EXPECTED_TAGS and job["budget_policy_id"] == "${var.budget_policy_id}"
         for task in job["tasks"]:
             assert {d["task_key"] for d in task.get("depends_on", [])} <= keys
             if "pipeline_task" in task:
@@ -103,7 +109,23 @@ def test__jobs_only_reference_pipelines_the_bundle_defines_and_are_tagged(bundle
                     r"\$\{resources\.pipelines\.(\w+)\.id\}", task["pipeline_task"]["pipeline_id"]
                 ).group(1)
                 assert name in resources["pipelines"]
-    assert all(set(p["tags"]) == {"cost_center", "region"} for p in resources["pipelines"].values())
+    for pipeline in resources["pipelines"].values():
+        assert pipeline["tags"] == EXPECTED_TAGS and pipeline["budget_policy_id"] == "${var.budget_policy_id}"
+
+
+@pytest.mark.parametrize("bundle", BUNDLES)
+def test__every_job_notifies_teams_and_email_on_failure(bundle: Path):
+    """Failures and duration warnings reach the squad's Teams destination; failures also reach its email."""
+    for job in load_bundle(bundle)["resources"]["jobs"].values():
+        assert {key: job[key] for key in NOTIFICATIONS} == NOTIFICATIONS
+
+
+@pytest.mark.parametrize("bundle", BUNDLES)
+def test__every_target_names_a_budget_policy_so_serverless_cost_is_attributed(bundle: Path):
+    """Each target sets the budget policy and the Teams/email destinations; placeholders block deploys until filled."""
+    for name, target in load_bundle(bundle)["targets"].items():
+        for key in ("budget_policy_id", *NOTIFICATION_PLACEHOLDERS):
+            assert target["variables"][key], (name, key)
 
 
 def test__the_repository_metadata_is_valid():

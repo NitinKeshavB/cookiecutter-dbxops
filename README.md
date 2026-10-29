@@ -36,6 +36,17 @@ harness. Then you start building.
 - `platform_meta`, a versioned metadata database (31 tables, 21 views) holding definitions, deployments, runs, row counts, quality results and lineage,
   on PostgreSQL, Lakebase or Unity Catalog. Every job ends with a task that records its run.
 
+**Cost, performance and owner insights**
+- Every job and pipeline is tagged with its project, bundle, target and git repository, branch and commit (from the
+  bundle's own git substitutions), and attached to a budget policy; `dbxops-publish-costs` loads daily cost per project
+  from `system.billing` into `platform_meta`, with `v_burn_rate` showing growth against the 7- and 28-day baselines.
+- Every run records its performance; a tuning advisor raises recommendations (slower than baseline, throughput drop,
+  repeated full refresh) that an owner accepts or rejects. `conf/table_defaults.yml` and `make recommend` push designs
+  towards the cheapest method that fits (Lakeflow Connect, Federation, Auto Loader, COPY INTO, custom).
+- `platform_insights` views join `platform_meta` with the system tables: job and pipeline health, cost per commit and
+  per million rows, an access review of personal data, downstream table usage and one ranked list of recommendations.
+- loguru JSON run logging with secrets redacted; Teams and email notifications on every job; a 90% coverage gate.
+
 **Onboarding and governance**
 - A registry repository scaffold: issue form, validation, a pull request as the approval, and a provisioning script for the squad's repository.
 - Owner roles (technical, data, executive, steward, support), AD groups, service principal and required tags are captured per squad.

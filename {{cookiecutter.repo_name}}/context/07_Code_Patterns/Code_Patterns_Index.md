@@ -23,6 +23,7 @@ register genuinely new repeating patterns here in the same change (`CLAUDE.md` Â
 | B-006 | Generated file with a drift check | A file derived from other files is written by a command and compared by `--check`/a rule/a test, so hand edits and stale copies fail CI. Used by contracts, substitutions, config copies, platform snapshots, vendored skills and the data dictionary. | stable | `src/dbxops/metadata/substitutions.py`, `scripts/vendor_skills.py` |
 | B-007 | Validate offline with the tool's own schema or validator | Configuration is checked against the vendor's own artefact instead of a re-implementation: the Databricks CLI's `bundle schema`, the framework's `validate_dataflows.py`, the Bitol JSON Schemas, `actionlint`, `shellcheck`. | stable | `tests/fixtures/bundle_schema.py`, `tests/bundles/test_bundles.py` |
 | B-008 | Injected client with a recording fake | Anything that talks to a service takes it as a parameter or Protocol, and tests pass a fake that records calls (and, for the SDK, an autospecced mock so a wrong method name fails). | stable | `src/dbxops/workspace.py`, `tests/fixtures/workspace.py`, `tests/fixtures/metastore.py` |
+| B-009 | Advisor rule chain | A recommendation source is a tuple of small functions, each returning one finding or `None`, run in order over the same input; thresholds live in a frozen policy dataclass. Used by metadata rules, the tuning advisor and the ingestion recommender. | stable | `src/dbxops/metadata/rules.py`, `src/dbxops/metastore/tuning.py` |
 
 ## Data / packaging patterns (D-XXX)
 

@@ -1,4 +1,4 @@
-"""Command line for the metadata tooling: `python -m dbxops.metadata <validate|contracts|export-ontos>`."""
+"""Command line for the metadata tooling: `python -m dbxops.metadata <validate|contracts|recommend|export-ontos>`."""
 
 from __future__ import annotations
 
@@ -15,6 +15,10 @@ from dbxops.metadata.contracts import (
     write_contracts,
 )
 from dbxops.metadata.export_ontos import export_ontos
+from dbxops.metadata.ingestion import (
+    load_profiles,
+    recommend,
+)
 from dbxops.metadata.repo import RepoContext
 from dbxops.metadata.rules import (
     GitBaseline,
@@ -68,6 +72,23 @@ def _substitutions(ctx: RepoContext, check: bool) -> int:
     return 1 if (check and changed) else 0
 
 
+def _recommend(ctx: RepoContext) -> int:
+    rows = []
+    for bundle_dir in sorted({info.bundle_dir for info in ctx.specs}):
+        for table, profile in sorted(load_profiles(bundle_dir).items()):
+            best = recommend(profile)
+            status = "ok" if profile.method == best.method else ("justified" if profile.justification else "CHANGE")
+            rows.append((bundle_dir.name, table, profile.method, best.method, best.runner_up, status, best.reason))
+    if not rows:
+        print("no ingestion profiles (bundles/<bundle>/src/config/ingestion.yml)")
+        return 0
+    print("| bundle | table | declared | recommended | runner-up | status | why |")
+    print("|---|---|---|---|---|---|---|")
+    for row in rows:
+        print("| " + " | ".join(row) + " |")
+    return 1 if any(row[5] == "CHANGE" for row in rows) else 0
+
+
 def _new_bundle(root: Path, name: str, data_domain: str) -> int:
     try:
         files = scaffold_bundle(root, name, data_domain)
@@ -103,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
         required=True,
         help="data-domain path of the example table, e.g. claims__litigation__claim_litigation",
     )
+    commands.add_parser("recommend", help="compare each bronze table's ingestion method with the cheapest that fits")
     export_cmd = commands.add_parser("export-ontos", help="write Ontos upload files for one target")
     export_cmd.add_argument("--target", required=True)
     export_cmd.add_argument("--out", type=Path, help="output directory (default: build/ontos/<target>)")
@@ -116,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
         return _new_bundle(args.root.resolve(), args.name, args.data_domain)
     if args.command == "substitutions":
         return _substitutions(ctx, args.check)
+    if args.command == "recommend":
+        return _recommend(ctx)
     out = args.out or ctx.root / "build" / "ontos" / args.target
     paths = export_ontos(ctx, args.target, out)
     print(f"wrote {len(paths)} files under {out}")

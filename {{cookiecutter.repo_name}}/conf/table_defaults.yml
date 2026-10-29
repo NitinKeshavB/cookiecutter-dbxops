@@ -1,0 +1,14 @@
+# Table defaults every dataflow spec target must carry; checked by `make validate-metadata` (rule `table-defaults`).
+#
+# Why these: row tracking lets materialized views downstream refresh incrementally instead of recomputing; liquid
+# clustering (cluster_by_auto or explicit keys) keeps reads fast without manual partitioning; change data feed costs
+# extra writes, so it should be on only where something reads the change feed.
+#
+# A target that must deviate is listed under `exceptions` as `<schema>.<table>: <reason>`; the reason shows in review.
+required_table_properties:
+  delta.enableRowTracking: "true"
+# streaming tables need cluster_by_auto: true or a cluster_by list (materialized views are not checked)
+clustering: required
+# warn when change data feed is on but every reader in this repo streams the table as an append source
+change_data_feed: only_when_read
+exceptions: {}

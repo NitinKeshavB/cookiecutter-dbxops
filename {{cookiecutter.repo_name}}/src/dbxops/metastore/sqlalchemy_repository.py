@@ -53,9 +53,14 @@ from dbxops.metastore.model import (
     entity_spec,
     render_view_ddl,
 )
+from dbxops.metastore.performance import (
+    PERFORMANCE_COLUMNS,
+    performance_record,
+)
 from dbxops.metastore.records import (
     STATUS_RETIRED,
     DefinitionRecord,
+    PerformanceRecord,
     PublishContext,
     PublishCounts,
     QualityRuleRef,
@@ -235,6 +240,18 @@ class SqlAlchemyRepository(BaseRepository):
             condition = and_(condition, parent.c.status != STATUS_RETIRED)
         with self._engine.connect() as conn:
             return [row[0] for row in conn.execute(select(parent.c.entity_id).where(condition).order_by("entity_id"))]
+
+    def recent_performance(self, repo_id: str, target: str, limit: int = 500) -> list[PerformanceRecord]:
+        """Return the newest ``limit`` performance facts of ``repo_id`` on ``target``, newest first."""
+        table = self._model.table("md_run_performance")
+        statement = (
+            select(*(table.c[name] for name in PERFORMANCE_COLUMNS))
+            .where(and_(table.c.repo_id == repo_id, table.c.target == target))
+            .order_by(table.c.recorded_at.desc(), table.c.update_id.desc())
+            .limit(limit)
+        )
+        with self._engine.connect() as conn:
+            return [performance_record(dict(zip(PERFORMANCE_COLUMNS, row))) for row in conn.execute(statement)]
 
     def current_quality_rules(self, repo_id: str) -> list[QualityRuleRef]:
         """Return the quality rules of the current contracts of ``repo_id``, with the asset each applies to."""

@@ -21,10 +21,13 @@ from typing import (
 )
 
 from dbxops.metastore.records import (
+    CostRecord,
     DefinitionRecord,
     DeploymentRecord,
     EvalResultRecord,
     LineageEdge,
+    OperationsBatch,
+    PerformanceRecord,
     PublishContext,
     PublishCounts,
     PublishLogEntry,
@@ -65,6 +68,9 @@ class MetadataRepository(Protocol):
     def current_quality_rules(self, repo_id: str) -> list[QualityRuleRef]:
         """Return the quality rules of the current contracts of ``repo_id``, with the asset each applies to."""
 
+    def recent_performance(self, repo_id: str, target: str, limit: int = 500) -> list[PerformanceRecord]:
+        """Return the newest ``limit`` performance facts of ``repo_id`` on ``target``, newest first."""
+
     def upsert_semantic_links(self, rows: Sequence[SemanticLinkRow], ctx: PublishContext) -> int:
         """Replace the semantic links of ``ctx.repo_id``: upsert ``rows`` and deactivate the rest."""
 
@@ -88,6 +94,12 @@ class MetadataRepository(Protocol):
 
     def record_evals(self, results: Sequence[EvalResultRecord], ctx: PublishContext) -> int:
         """Insert evaluation results if absent; return the number inserted."""
+
+    def record_operations(self, batch: OperationsBatch, ctx: PublishContext) -> int:
+        """Insert performance, tuning, design-decision and log-event facts if absent; return the number inserted."""
+
+    def record_costs(self, records: Sequence[CostRecord], ctx: PublishContext) -> int:
+        """Insert daily cost rows if absent; return the number inserted."""
 
     def log_publish(self, entry: PublishLogEntry) -> None:
         """Append one status event of a publish to ``md_publish_log``."""

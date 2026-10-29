@@ -44,6 +44,9 @@ def test__the_task_records_the_run_its_updates_and_row_counts(repo, sqlite_engin
     assert run == [{"status": "SUCCESS", "job_asset_id": "uc_job/example_claims/9"}]
     metrics = rows(sqlite_engine, "SELECT asset_id, rows_written, rows_dropped FROM md_dataset_metrics")
     assert metrics == [{"asset_id": "example_claims_silver.fact_premium", "rows_written": 98, "rows_dropped": 2}]
+    events = rows(sqlite_engine, "SELECT run_id, seq, level, message FROM md_run_event ORDER BY seq")
+    assert [e["run_id"] for e in events] == ["42", "42"] and events[0]["message"].startswith("run 42:")
+    assert rows(sqlite_engine, "SELECT count(*) AS n FROM md_run_performance")[0]["n"] == 1
 
 
 def test__rerunning_the_task_writes_nothing_twice(repo, sqlite_engine):

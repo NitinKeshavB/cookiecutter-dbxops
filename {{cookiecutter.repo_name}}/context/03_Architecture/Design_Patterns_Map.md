@@ -15,6 +15,11 @@ Where each pattern from the design-patterns reading list is used, so a new contr
 | Chain of Responsibility (rule chain) | `metadata.rules.DEFAULT_RULES` | independent rules, one run reports every problem |
 | Dependency inversion | gateways and clients are injected; tests use fakes | nothing here needs a workspace to test |
 | SCD type 2 | definition tables, `record_version`, `valid_from`/`valid_to` | full history of every definition |
+| Chain of Responsibility (advisor) | `metastore.tuning.DEFAULT_TUNING_RULES`; `metadata.ingestion.recommend` | each rule reports one recommendation independently |
+| Strategy (attribution) | `metastore.cost.attribute`: tags, then deployment record, then job-name prefix | the most reliable evidence wins, and says which it was |
+| Adapter | `metastore.cost.SparkBillingReader`, `insights.SqlExecutor` | system tables and SQL warehouses behind small Protocols |
 
-Rules of thumb: add a rule as a new function in `rules.py` and `DEFAULT_RULES`; add a database as a new `SqlExecutor` or
+Rules of thumb: add a tuning rule as a function in `tuning.py` and `DEFAULT_TUNING_RULES`; add an owner view as a
+numbered file in `insights/sql/` (it may read only system tables, `platform_meta` objects and earlier views — a test
+checks); add a rule as a new function in `rules.py` and `DEFAULT_RULES`; add a database as a new `SqlExecutor` or
 dialect strategy; add a reconciler as a `Reconciler` subclass with a desired-state dataclass.

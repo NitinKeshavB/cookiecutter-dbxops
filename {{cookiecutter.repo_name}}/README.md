@@ -19,7 +19,9 @@ database. This repository was generated from the [cookiecutter-dbxops](https://g
 | **Metadata database** | `platform_meta`: versioned definitions, deployments, runs, row counts, quality results and lineage; PostgreSQL, Lakebase and Unity Catalog backends |
 | **Onboarding** | a registry repository scaffold: issue form, validation, a pull request as the approval, then a provisioned repository with environments and rulesets |
 | **CI/CD** | GitHub Actions for checks, per-target deployment with environment approvals, and a weekly framework-upgrade check |
-| **The library** | `dbxops` (public API in `src/dbxops/__init__.py`) and the `dbxops-publish-run` job command |
+| **Cost and performance** | provenance tags (project, repo, commit) and a budget policy on every job and pipeline, daily cost per project from `system.billing`, per-run performance, a tuning advisor, an ingestion-method recommender (`make recommend`) and table defaults (`conf/table_defaults.yml`) |
+| **Owner insights** | `platform_insights` views over `platform_meta` and the system tables: job and pipeline health, cost, access review, table usage and one ranked list of recommendations (`python -m dbxops.insights`) |
+| **The library** | `dbxops` (public API in `src/dbxops/__init__.py`) and the `dbxops-publish-run`, `dbxops-publish-costs` and `dbxops-deploy-insights` job commands; loguru JSON run logging (`dbxops.runlog`) |
 
 ## Concepts in one minute
 

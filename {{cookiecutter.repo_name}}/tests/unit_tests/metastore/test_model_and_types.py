@@ -41,8 +41,8 @@ from dbxops.metastore.types import (
     utc_now_minus_days,
 )
 
-TABLE_COUNT = 31
-VIEW_COUNT = 21
+TABLE_COUNT = 37
+VIEW_COUNT = 24
 
 
 @pytest.mark.parametrize(

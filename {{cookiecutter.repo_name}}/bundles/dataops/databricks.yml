@@ -33,6 +33,12 @@ variables:
     description: Cost centre tag (metadata/_platform/repo.yaml tags)
   region:
     description: Region tag (metadata/_platform/repo.yaml tags)
+  budget_policy_id:
+    description: Serverless budget policy of this project; its tags attribute serverless cost (set by the platform team)
+  notification_destination_id:
+    description: Workspace notification destination (Microsoft Teams) for failures and duration warnings
+  notification_email:
+    description: Email address (or distribution list) told about failed runs
   dbxops_wheel_path:
     description: Path of the dbxops wheel on a UC volume, set by CI (/Volumes/<catalog>/platform/wheels/<version>/...whl)
     default: ""
@@ -50,6 +56,9 @@ targets:
       framework_source_path: /Workspace/Shared/.bundle/lakeflow_framework/dev/v0.24.1/files/src
       cost_center: <PLACEHOLDER-cost-center>
       region: <PLACEHOLDER-region>
+      budget_policy_id: <PLACEHOLDER-budget-policy-id>
+      notification_destination_id: <PLACEHOLDER-teams-notification-destination-id>
+      notification_email: <PLACEHOLDER-notification-email>
       logical_env: _${workspace.current_user.short_name}
     default: true
   test:
@@ -63,6 +72,9 @@ targets:
       framework_source_path: /Workspace/Shared/.bundle/lakeflow_framework/test/v0.24.1/files/src
       cost_center: <PLACEHOLDER-cost-center>
       region: <PLACEHOLDER-region>
+      budget_policy_id: <PLACEHOLDER-budget-policy-id>
+      notification_destination_id: <PLACEHOLDER-teams-notification-destination-id>
+      notification_email: <PLACEHOLDER-notification-email>
       service_principal_application_id: <PLACEHOLDER-project-sp-application-id>
     run_as:
       service_principal_name: ${var.service_principal_application_id}
@@ -77,6 +89,9 @@ targets:
       framework_source_path: /Workspace/Shared/.bundle/lakeflow_framework/uat/v0.24.1/files/src
       cost_center: <PLACEHOLDER-cost-center>
       region: <PLACEHOLDER-region>
+      budget_policy_id: <PLACEHOLDER-budget-policy-id>
+      notification_destination_id: <PLACEHOLDER-teams-notification-destination-id>
+      notification_email: <PLACEHOLDER-notification-email>
       service_principal_application_id: <PLACEHOLDER-project-sp-application-id>
     run_as:
       service_principal_name: ${var.service_principal_application_id}
@@ -91,6 +106,9 @@ targets:
       framework_source_path: /Workspace/Shared/.bundle/lakeflow_framework/preprod/v0.24.1/files/src
       cost_center: <PLACEHOLDER-cost-center>
       region: <PLACEHOLDER-region>
+      budget_policy_id: <PLACEHOLDER-budget-policy-id>
+      notification_destination_id: <PLACEHOLDER-teams-notification-destination-id>
+      notification_email: <PLACEHOLDER-notification-email>
       service_principal_application_id: <PLACEHOLDER-project-sp-application-id>
       performance_target: PERFORMANCE_OPTIMIZED
     run_as:
@@ -106,6 +124,9 @@ targets:
       framework_source_path: /Workspace/Shared/.bundle/lakeflow_framework/prod/v0.24.1/files/src
       cost_center: <PLACEHOLDER-cost-center>
       region: <PLACEHOLDER-region>
+      budget_policy_id: <PLACEHOLDER-budget-policy-id>
+      notification_destination_id: <PLACEHOLDER-teams-notification-destination-id>
+      notification_email: <PLACEHOLDER-notification-email>
       service_principal_application_id: <PLACEHOLDER-project-sp-application-id>
       performance_target: PERFORMANCE_OPTIMIZED
     run_as:

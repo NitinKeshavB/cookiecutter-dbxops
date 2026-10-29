@@ -3,7 +3,7 @@
 Generated from the model by `python -m dbxops.metastore dictionary` (`make metadata-dictionary`). Do not edit by hand:
 a test fails when this file differs from the model. Narrative and rules are in `Metadata_Model.md`.
 
-Schema `platform_meta`; 31 tables and 21 views.
+Schema `platform_meta`; 37 tables and 24 views.
 
 ### Pattern A: versioned definitions (parents)
 
@@ -582,6 +582,109 @@ Runtime fact, purged after `retention_days`. Primary key: `target, run_id, subje
 | `repo_id` | TEXT | no |  |
 | `recorded_at` | TIMESTAMP (UTC) | no |  |
 
+#### `md_run_performance`
+
+Runtime fact, purged after `retention_days`. Primary key: `target, update_id`.
+
+| column | type | null | key |
+|---|---|---|---|
+| `target` | TEXT | no | PK |
+| `update_id` | TEXT | no | PK |
+| `run_id` | TEXT | yes |  |
+| `pipeline_asset_id` | TEXT | yes |  |
+| `duration_seconds` | DOUBLE | yes |  |
+| `rows_written` | BIGINT | yes |  |
+| `rows_per_second` | DOUBLE | yes |  |
+| `full_refresh` | BOOLEAN | yes |  |
+| `repo_id` | TEXT | no |  |
+| `recorded_at` | TIMESTAMP (UTC) | no |  |
+
+#### `md_cost_daily`
+
+ Primary key: `usage_date, object_type, object_id, sku_name`.
+
+| column | type | null | key |
+|---|---|---|---|
+| `usage_date` | TEXT | no | PK |
+| `object_type` | TEXT | no | PK |
+| `object_id` | TEXT | no | PK |
+| `sku_name` | TEXT | no | PK |
+| `day_index` | INTEGER | yes |  |
+| `project_id` | TEXT | yes |  |
+| `target` | TEXT | yes |  |
+| `bundle` | TEXT | yes |  |
+| `git_repo` | TEXT | yes |  |
+| `git_sha` | TEXT | yes |  |
+| `attribution` | TEXT | yes |  |
+| `dbus` | DOUBLE | yes |  |
+| `list_cost` | DOUBLE | yes |  |
+| `currency` | TEXT | yes |  |
+| `repo_id` | TEXT | no |  |
+| `recorded_at` | TIMESTAMP (UTC) | no |  |
+
+#### `md_tuning_recommendation`
+
+Runtime fact, purged after `retention_days`. Primary key: `target, asset_id, rule_code, evidence_key`.
+
+| column | type | null | key |
+|---|---|---|---|
+| `target` | TEXT | no | PK |
+| `asset_id` | TEXT | no | PK |
+| `rule_code` | TEXT | no | PK |
+| `evidence_key` | TEXT | no | PK |
+| `severity` | TEXT | yes |  |
+| `message` | TEXT | yes |  |
+| `expected_saving_pct` | DOUBLE | yes |  |
+| `evidence` | JSON | yes |  |
+| `repo_id` | TEXT | no |  |
+| `recorded_at` | TIMESTAMP (UTC) | no |  |
+
+#### `md_tuning_decision`
+
+ Primary key: `target, asset_id, rule_code, evidence_key`.
+
+| column | type | null | key |
+|---|---|---|---|
+| `target` | TEXT | no | PK |
+| `asset_id` | TEXT | no | PK |
+| `rule_code` | TEXT | no | PK |
+| `evidence_key` | TEXT | no | PK |
+| `decision` | TEXT | yes |  |
+| `decided_by` | TEXT | yes |  |
+| `reason` | TEXT | yes |  |
+| `repo_id` | TEXT | no |  |
+| `recorded_at` | TIMESTAMP (UTC) | no |  |
+
+#### `md_design_decision`
+
+ Primary key: `asset_id, git_sha`.
+
+| column | type | null | key |
+|---|---|---|---|
+| `asset_id` | TEXT | no | PK |
+| `git_sha` | TEXT | no | PK |
+| `recommended` | TEXT | yes |  |
+| `chosen` | TEXT | yes |  |
+| `justification` | TEXT | yes |  |
+| `approver` | TEXT | yes |  |
+| `repo_id` | TEXT | no |  |
+| `recorded_at` | TIMESTAMP (UTC) | no |  |
+
+#### `md_run_event`
+
+Runtime fact, purged after `retention_days`. Primary key: `run_id, seq`.
+
+| column | type | null | key |
+|---|---|---|---|
+| `run_id` | TEXT | no | PK |
+| `seq` | INTEGER | no | PK |
+| `level` | TEXT | yes |  |
+| `message` | TEXT | yes |  |
+| `logged_at` | TIMESTAMP (UTC) | yes |  |
+| `context` | JSON | yes |  |
+| `repo_id` | TEXT | no |  |
+| `recorded_at` | TIMESTAMP (UTC) | no |  |
+
 #### `md_publish_log`
 
  Primary key: `publish_id, status`.
@@ -622,9 +725,11 @@ Schema version bookkeeping.
 Read through these; they join each parent's current row to its children at the matching version.
 
 - `v_asset_current`
+- `v_burn_rate`
 - `v_contract_object_current`
 - `v_contract_property_current`
 - `v_contract_server_current`
+- `v_cost_by_project`
 - `v_data_contract_current`
 - `v_data_product_current`
 - `v_dataflow_flow_current`
@@ -633,6 +738,7 @@ Read through these; they join each parent's current row to its children at the m
 - `v_glossary_concept_current`
 - `v_lineage`
 - `v_lineage_drift`
+- `v_open_tuning_recommendations`
 - `v_port_input_contract_current`
 - `v_product_port_current`
 - `v_project_contact_current`

@@ -24,9 +24,18 @@ dbxops-publish-run --run-id <id> --target dev --repo-id <project_id> --config <m
 `deployments` needs `databricks bundle summary` (run in `--bundle-dir`). Lineage from the specs is *declared*; Unity Catalog's
 observed lineage needs a reader that is not wired yet.
 
+## Operational facts and costs
+
+`publish_run_metadata` also writes `md_run_performance`, `md_tuning_recommendation` and `md_run_event` (structured log
+events). `dbxops-publish-costs` writes `md_cost_daily` as `_platform`; `publish --what decisions` writes
+`md_design_decision`; `decide` writes `md_tuning_decision`. Views: `v_cost_by_project`, `v_burn_rate`,
+`v_open_tuning_recommendations`. The owner views over these and the system tables are in `platform_insights`
+(`Cost_And_Performance.md`).
+
 ## Retention
 
-Runtime facts (`md_run`, `md_pipeline_update`, `md_dataset_metrics`, `md_quality_result`, `md_eval_result`) are purged after
+Runtime facts (`md_run`, `md_pipeline_update`, `md_dataset_metrics`, `md_quality_result`, `md_eval_result`,
+`md_run_performance`, `md_tuning_recommendation`, `md_run_event`) are purged after
 `retention_days` (default 400) by `purge_runtime`, callable only by the registry writer. **Nothing schedules it yet.**
 Definitions and deployments are kept forever.
 

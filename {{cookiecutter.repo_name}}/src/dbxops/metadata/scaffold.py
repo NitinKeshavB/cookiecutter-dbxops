@@ -29,6 +29,28 @@ from dbxops.registry.domains import DomainError
 NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,30}$")
 EXAMPLE_TABLE = "example"
 ROLE_LEVELS = (("admins", "CAN_MANAGE"), ("developers", "CAN_RUN"), ("readers", "CAN_VIEW"))
+# tags every job and pipeline carries so cost is attributed to the project, repository and commit that deployed it
+PROVENANCE_TAGS = {
+    "project_id": "${var.project_id}",
+    "bundle": "${bundle.name}",
+    "target": "${bundle.target}",
+    "git_repo": "${bundle.git.origin_url}",
+    "git_ref": "${bundle.git.branch}",
+    "git_sha": "${bundle.git.commit}",
+}
+BUDGET_POLICY_PLACEHOLDER = "<PLACEHOLDER-budget-policy-id>"
+# every job tells the squad about failures by email and in Microsoft Teams (a workspace notification destination)
+NOTIFICATIONS = {
+    "email_notifications": {"on_failure": ["${var.notification_email}"]},
+    "webhook_notifications": {
+        "on_failure": [{"id": "${var.notification_destination_id}"}],
+        "on_duration_warning_threshold_exceeded": [{"id": "${var.notification_destination_id}"}],
+    },
+}
+NOTIFICATION_PLACEHOLDERS = {
+    "notification_destination_id": "<PLACEHOLDER-teams-notification-destination-id>",
+    "notification_email": "<PLACEHOLDER-notification-email>",
+}
 
 
 class ScaffoldError(ValueError):
@@ -55,6 +77,13 @@ def _variables(tag_keys: list[str]) -> dict[str, Any]:
     }
     for key in tag_keys:
         variables[key] = {"description": f"{key} tag (metadata/_platform/repo.yaml tags)"}
+    variables["budget_policy_id"] = {
+        "description": "Serverless budget policy of this project; its tags attribute serverless cost (set by the platform team)"
+    }
+    variables["notification_destination_id"] = {
+        "description": "Workspace notification destination (Microsoft Teams) for failures and duration warnings"
+    }
+    variables["notification_email"] = {"description": "Email address (or distribution list) told about failed runs"}
     variables["dbxops_wheel_path"] = {
         "description": "Path of the dbxops wheel on a UC volume, set by CI (/Volumes/<catalog>/platform/wheels/<version>/...whl)",
         "default": "",
@@ -76,6 +105,8 @@ def _targets(ctx: RepoContext, tags: dict[str, str]) -> dict[str, Any]:
                 "workspace_host": host,
                 "framework_source_path": f"/Workspace/Shared/.bundle/lakeflow_framework/{name}/{version}/files/src",
                 **tags,
+                "budget_policy_id": BUDGET_POLICY_PLACEHOLDER,
+                **NOTIFICATION_PLACEHOLDERS,
             },
         }
         if name == "dev":
@@ -107,7 +138,7 @@ def _bundle_config(ctx: RepoContext, name: str) -> dict[str, Any]:
 
 
 def _tag_refs(ctx: RepoContext) -> dict[str, str]:
-    return {key: f"${{var.{key}}}" for key in ctx.repo["tags"]}
+    return {**{key: f"${{var.{key}}}" for key in ctx.repo["tags"]}, **PROVENANCE_TAGS}
 
 
 def _pipeline(ctx: RepoContext, name: str) -> dict[str, Any]:
@@ -122,6 +153,7 @@ def _pipeline(ctx: RepoContext, name: str) -> dict[str, Any]:
                     "schema": "${var.project_id}_silver${var.logical_env}",
                     "libraries": [{"notebook": {"path": "${var.framework_source_path}/dlt_pipeline"}}],
                     "root_path": "${workspace.file_path}/src",
+                    "budget_policy_id": "${var.budget_policy_id}",
                     "tags": _tag_refs(ctx),
                     "configuration": {
                         "bundle.sourcePath": "${workspace.file_path}/src",
@@ -144,7 +176,9 @@ def _job(ctx: RepoContext, name: str) -> dict[str, Any]:
             "jobs": {
                 f"{name}_run": {
                     "name": f"[${{var.project_id}}] {name} run (${{bundle.target}}${{var.logical_env}})",
+                    "budget_policy_id": "${var.budget_policy_id}",
                     "tags": _tag_refs(ctx),
+                    **NOTIFICATIONS,
                     "performance_target": "${var.performance_target}",
                     "queue": {"enabled": True},
                     "environments": [

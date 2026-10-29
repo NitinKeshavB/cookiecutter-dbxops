@@ -1,0 +1,37 @@
+# How each bronze table is ingested, and the facts the recommender decides on (make recommend).
+# `make validate-metadata` (rule ingestion-method) fails a table whose `method` is costlier than the recommended one
+# unless `justification` says why. Methods: lakeflow_connect | federation | autoloader | copy_into | custom.
+# Sources: files | database | saas | sftp | api.
+#
+# The example's synthetic generator stands in for a policy-admin system that drops JSON files hourly.
+tables:
+  party:
+    source: files
+    arrival: batch
+    files_per_day: 24
+    method: autoloader
+  policy:
+    source: files
+    arrival: batch
+    files_per_day: 24
+    method: autoloader
+  coverage:
+    source: files
+    arrival: batch
+    files_per_day: 24
+    method: autoloader
+  premium:
+    source: files
+    arrival: batch
+    files_per_day: 24
+    method: autoloader
+  claim:
+    source: files
+    arrival: batch
+    files_per_day: 24
+    method: autoloader
+  claim_payment:
+    source: files
+    arrival: batch
+    files_per_day: 24
+    method: autoloader

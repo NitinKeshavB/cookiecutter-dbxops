@@ -1,5 +1,5 @@
 """
-Command line: ``python -m dbxops.metastore publish|ensure-schema``.
+Command line: ``python -m dbxops.metastore publish|ensure-schema|publish-registry|decide|dictionary``.
 
 A thin wrapper: parse arguments, build the repository with ``RepositoryFactory``, discover documents with
 ``sources``, map them with the collectors and hand them to ``MetadataPublisher``.
@@ -19,6 +19,11 @@ from typing import (
 
 import yaml
 
+from dbxops.metadata.ingestion import (
+    INGESTION_FILE,
+    load_profiles,
+    recommend,
+)
 from dbxops.metastore import collectors
 from dbxops.metastore.dictionary import render_dictionary
 from dbxops.metastore.errors import MetastoreError
@@ -28,8 +33,12 @@ from dbxops.metastore.records import (
     ORIGIN_SPEC,
     PLATFORM_REPO_ID,
     DefinitionRecord,
+    DesignDecisionRecord,
+    OperationsBatch,
     PublishContext,
     PublishCounts,
+    TuningDecision,
+    TuningKey,
 )
 from dbxops.metastore.repository import MetadataRepository
 from dbxops.metastore.runtime_collectors import (
@@ -46,7 +55,7 @@ from dbxops.metastore.sources import (
 )
 from dbxops.registry.snapshots import merge_glossary
 
-WHAT_CHOICES = ("definitions", "deployments", "lineage")
+WHAT_CHOICES = ("definitions", "deployments", "lineage", "decisions")
 DEFAULT_CONFIG = "conf/metastore.yml"
 
 RepositoryBuilder = Callable[[str, str], MetadataRepository]
@@ -64,6 +73,16 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("--config", default=DEFAULT_CONFIG)
         command.add_argument("--root", default=".", help="repo root holding metadata/ and the bundles")
     commands.add_parser("dictionary", help="print the data dictionary (markdown) generated from the model")
+    decide = commands.add_parser("decide", help="record a person's answer to a tuning recommendation")
+    decide.add_argument("--target", required=True)
+    decide.add_argument("--config", default=DEFAULT_CONFIG)
+    decide.add_argument("--root", default=".", help="repo root holding metadata/")
+    decide.add_argument("--asset", required=True, help="asset_id of the recommendation, e.g. uc_pipeline/<id>")
+    decide.add_argument("--rule", required=True, help="rule_code, e.g. slower_than_baseline")
+    decide.add_argument("--evidence", required=True, help="evidence_key (the update id it fired on)")
+    decide.add_argument("--decision", required=True, choices=("accepted", "rejected"))
+    decide.add_argument("--reason", default="")
+    decide.add_argument("--by", default=os.environ.get("GITHUB_ACTOR") or os.environ.get("USER", "unknown"))
     registry = commands.choices["publish-registry"]
     registry.add_argument("--registry", required=True, help="registry checkout: projects/, domains.yaml, glossary/")
     registry.add_argument("--git-sha", default=os.environ.get("GITHUB_SHA"))
@@ -116,6 +135,24 @@ def _publish_deployments(publisher: MetadataPublisher, args: argparse.Namespace,
     return publisher.publish_deployment(record)
 
 
+def design_decisions(found_root: Path, repo_id: str, git_sha: str, approver: str) -> list[DesignDecisionRecord]:
+    """Return one decision per bronze table declared in a bundle's ingestion.yml, with the recommender's choice."""
+    records = []
+    for bundle_dir in sorted(path.parent.parent.parent for path in found_root.glob(f"bundles/*/{INGESTION_FILE}")):
+        for table, profile in sorted(load_profiles(bundle_dir).items()):
+            records.append(
+                DesignDecisionRecord(
+                    asset_id=f"{repo_id}_bronze.{table}",
+                    git_sha=git_sha,
+                    recommended=recommend(profile).method,
+                    chosen=profile.method,
+                    justification=profile.justification,
+                    approver=approver,
+                )
+            )
+    return records
+
+
 def run_publish(args: argparse.Namespace, build: RepositoryBuilder, runner: BundleRunner | None = None) -> int:
     """Run the ``publish`` command."""
     what = [item.strip() for item in args.what.split(",") if item.strip()]
@@ -134,6 +171,21 @@ def run_publish(args: argparse.Namespace, build: RepositoryBuilder, runner: Bund
     if "lineage" in what:
         edges = LineageCollector.spec_edges(_spec_records(found, context))
         print(f"lineage: {publisher.publish_lineage(edges, ORIGIN_SPEC)}")
+    if "decisions" in what:
+        decisions = design_decisions(root, context.repo_id, args.git_sha or "", args.published_by)
+        print(f"decisions: {publisher.publish_operations(OperationsBatch(design_decisions=decisions))}")
+    return 0
+
+
+def run_decide(args: argparse.Namespace, build: RepositoryBuilder) -> int:
+    """Record one accepted or rejected tuning recommendation for this repo."""
+    context = PublishContext(read_repo_id(Path(args.root)), args.by, None, args.target)
+    key = TuningKey(args.target, args.asset, args.rule, args.evidence)
+    decision = TuningDecision(key, args.decision, args.by, args.reason)
+    counts = MetadataPublisher(build(args.config, args.target), context).publish_operations(
+        OperationsBatch(tuning_decisions=[decision])
+    )
+    print(f"decision: {counts}")
     return 0
 
 
@@ -176,6 +228,8 @@ def main(
             return 0
         if args.command == "publish-registry":
             return run_publish_registry(args, builder)
+        if args.command == "decide":
+            return run_decide(args, builder)
         return run_publish(args, builder, runner)
     except MetastoreError as error:
         print(f"error: {error}", file=sys.stderr)

@@ -9,7 +9,7 @@ authors = [{ name = "<your name>", email = "some-email@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["pyyaml>=6", "jsonschema>=4", "rdflib>=7", "sqlalchemy>=2", "databricks-sdk>=0.64"]
+dependencies = ["pyyaml>=6", "jsonschema>=4", "rdflib>=7", "sqlalchemy>=2", "databricks-sdk>=0.64", "loguru>=0.7"]
 classifiers = ["Programming Language :: Python :: 3"]
 keywords = ["one", "two"]
 
@@ -19,6 +19,8 @@ dynamic = ["version"]
 # commands installed with the package; jobs run them with a python_wheel_task
 [project.scripts]
 dbxops-publish-run = "dbxops.metastore.job_task:main"
+dbxops-publish-costs = "dbxops.metastore.job_task:costs_main"
+dbxops-deploy-insights = "dbxops.insights.__main__:deploy_main"
 
 # docs: https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
 [tool.setuptools.dynamic]
@@ -26,7 +28,7 @@ version = { file = "version.txt" }
 
 # optional dependencies can be installed with square brackets, e.g. `pip install my-package[test,static-code-qa]`
 [project.optional-dependencies]
-test = ["pytest", "pytest-cov", "faker"]
+test = ["pytest", "pytest-cov", "faker", "sqlglot>=25"]
 release = ["build", "twine"]
 # metadata database backends (master plan §D); Lakebase uses the postgres extra
 uc = ["databricks-sql-connector>=4", "databricks-sqlalchemy>=2"]
@@ -55,7 +57,7 @@ build-backend = "setuptools.build_meta"
 
 # include more than only .py files in the distribution package (wheel)
 [tool.setuptools.package-data]
-dbxops = ["*.json", "metadata/schemas/*.json", "registry/schemas/*.json"]
+dbxops = ["*.json", "metadata/schemas/*.json", "registry/schemas/*.json", "insights/sql/*.sql"]
 
 
 ##############################

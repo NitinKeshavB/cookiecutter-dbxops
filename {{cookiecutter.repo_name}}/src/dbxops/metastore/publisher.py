@@ -17,10 +17,13 @@ from typing import (
 
 from dbxops.metastore.errors import CollectError
 from dbxops.metastore.guard import WriterGuard
+from dbxops.metastore.performance import performance_from_run
 from dbxops.metastore.records import (
+    CostRecord,
     DefinitionRecord,
     DeploymentRecord,
     LineageEdge,
+    OperationsBatch,
     PublishContext,
     PublishCounts,
     PublishLogEntry,
@@ -143,9 +146,21 @@ class MetadataPublisher:
         def action(ctx: PublishContext) -> PublishCounts:
             inserted = self._repository.record_run(collection.run, ctx)
             inserted += self._repository.record_quality(collection.quality, ctx)
+            batch = OperationsBatch(performance=performance_from_run(collection.run))
+            inserted += self._repository.record_operations(batch, ctx)
             return PublishCounts(inserted=inserted)
 
         return self._publish("runs", action)
+
+    def publish_operations(self, batch: OperationsBatch) -> PublishCounts:
+        """Record operational facts (tuning recommendations and decisions, design decisions, log events)."""
+        return self._publish(
+            "operations", lambda ctx: PublishCounts(inserted=self._repository.record_operations(batch, ctx))
+        )
+
+    def publish_costs(self, records: Sequence[CostRecord]) -> PublishCounts:
+        """Record daily costs (registry only); days already loaded are left unchanged."""
+        return self._publish("costs", lambda ctx: PublishCounts(inserted=self._repository.record_costs(records, ctx)))
 
     def cleanup_orphans(self) -> int:
         """Delete orphan child rows left by a crashed publish."""
